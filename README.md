@@ -1,7 +1,7 @@
 # DevSecOps MCP Server
 
-[![CI/CD Pipeline](https://github.com/username/devsecops-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/username/devsecops-mcp-server/actions/workflows/ci.yml)
-[![Security Scanning](https://github.com/username/devsecops-mcp-server/actions/workflows/security.yml/badge.svg)](https://github.com/username/devsecops-mcp-server/actions/workflows/security.yml)
+[![CI/CD Pipeline](https://github.com/jmstar85/DevSecOps-MCP/actions/workflows/ci.yml/badge.svg)](https://github.com/jmstar85/DevSecOps-MCP/actions/workflows/ci.yml)
+[![Security Scanning](https://github.com/jmstar85/DevSecOps-MCP/actions/workflows/security.yml/badge.svg)](https://github.com/jmstar85/DevSecOps-MCP/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?logo=node.js&logoColor=white)](https://nodejs.org/)
