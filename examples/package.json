@@ -1,0 +1,16 @@
+{
+  "name": "vulnerable-demo-app",
+  "version": "1.0.0",
+  "description": "Demo app with security vulnerabilities for testing",
+  "main": "demo.js",
+  "dependencies": {
+    "express": "4.17.1",
+    "lodash": "4.17.20",
+    "moment": "2.29.1",
+    "request": "2.88.2",
+    "jquery": "3.4.1"
+  },
+  "devDependencies": {
+    "mocha": "8.0.1"
+  }
+}

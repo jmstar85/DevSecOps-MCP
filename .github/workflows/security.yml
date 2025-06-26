@@ -1,0 +1,284 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+
+jobs:
+  dependency-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Audit dependencies
+      run: |
+        npm audit --json > npm-audit.json || true
+        cat npm-audit.json
+    
+    - name: Upload audit results
+      uses: actions/upload-artifact@v4
+      with:
+        name: npm-audit-results
+        path: npm-audit.json
+
+  sast-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build project
+      run: npm run build
+    
+    - name: Run ESLint SAST
+      run: |
+        npm run lint -- --format=json --output-file=eslint-results.json || true
+    
+    - name: Run self SAST scan
+      run: |
+        mkdir -p scan-results
+        node -e "
+          const { AdvancedSASTTool } = require('./dist/tools/advanced-sast.js');
+          const fs = require('fs');
+          
+          async function runScan() {
+            try {
+              const tool = new AdvancedSASTTool();
+              const result = await tool.performAdvancedScan({
+                path: './src',
+                language: 'typescript',
+                include_metrics: true,
+                quality_gate: true
+              });
+              
+              fs.writeFileSync('./scan-results/sast-results.json', JSON.stringify(result, null, 2));
+              console.log('SAST scan completed. Issues found:', result.issues.length);
+              
+              // Fail if critical issues found
+              const criticalIssues = result.issues.filter(i => i.severity === 'blocker' || i.severity === 'critical');
+              if (criticalIssues.length > 0) {
+                console.error('Critical security issues found:', criticalIssues.length);
+                process.exit(1);
+              }
+            } catch (error) {
+              console.error('SAST scan failed:', error.message);
+              process.exit(1);
+            }
+          }
+          
+          runScan();
+        "
+    
+    - name: Upload SAST results
+      uses: actions/upload-artifact@v4
+      with:
+        name: sast-results
+        path: scan-results/
+
+  sca-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build project
+      run: npm run build
+    
+    - name: Run SCA scan
+      run: |
+        mkdir -p scan-results
+        node -e "
+          const { SCAAnalyzer } = require('./dist/tools/sca.js');
+          const fs = require('fs');
+          
+          async function runScan() {
+            try {
+              const analyzer = new SCAAnalyzer();
+              const result = await analyzer.performSCAAnalysis({
+                path: './',
+                ecosystem: 'npm',
+                include_transitive: true,
+                check_licenses: true,
+                check_vulnerabilities: true
+              });
+              
+              fs.writeFileSync('./scan-results/sca-results.json', JSON.stringify(result, null, 2));
+              console.log('SCA scan completed. Dependencies analyzed:', result.total_dependencies);
+              console.log('Vulnerabilities found:', result.vulnerabilities_summary.total);
+              console.log('Policy violations:', result.policy_violations.length);
+              
+              // Fail if critical vulnerabilities or policy violations found
+              const criticalVulns = result.vulnerabilities_summary.critical;
+              const criticalViolations = result.policy_violations.filter(v => v.severity === 'critical').length;
+              
+              if (criticalVulns > 0 || criticalViolations > 0) {
+                console.error('Critical security issues found in dependencies');
+                console.error('Critical vulnerabilities:', criticalVulns);
+                console.error('Critical policy violations:', criticalViolations);
+                process.exit(1);
+              }
+            } catch (error) {
+              console.error('SCA scan failed:', error.message);
+              process.exit(1);
+            }
+          }
+          
+          runScan();
+        "
+    
+    - name: Upload SCA results
+      uses: actions/upload-artifact@v4
+      with:
+        name: sca-results
+        path: scan-results/
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Run TruffleHog
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  container-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        cat > Dockerfile << 'EOF'
+        FROM node:20-alpine
+        
+        WORKDIR /app
+        
+        # Copy package files
+        COPY package*.json ./
+        COPY tsconfig.json ./
+        
+        # Install dependencies
+        RUN npm ci --only=production
+        
+        # Copy source code
+        COPY src/ ./src/
+        
+        # Build application
+        RUN npm run build
+        
+        # Remove dev dependencies and source
+        RUN npm prune --production && rm -rf src/
+        
+        # Create non-root user
+        RUN addgroup -g 1001 -S nodejs && adduser -S devsecops -u 1001
+        USER devsecops
+        
+        EXPOSE 3000
+        
+        CMD ["node", "dist/index.js"]
+        EOF
+        
+        docker build -t devsecops-mcp-server:latest .
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'devsecops-mcp-server:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  security-report:
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, sast-scan, sca-scan, secret-scan]
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Generate security report
+      run: |
+        mkdir -p security-report
+        
+        cat > security-report/README.md << 'EOF'
+        # Security Scan Report
+        
+        This report contains the results of automated security scans run on the DevSecOps MCP Server.
+        
+        ## Scans Performed
+        
+        - **SAST (Static Application Security Testing)**: Code analysis for security vulnerabilities
+        - **SCA (Software Composition Analysis)**: Dependency vulnerability and license analysis  
+        - **Secret Scanning**: Detection of hardcoded secrets and credentials
+        - **Container Scanning**: Docker image vulnerability analysis
+        - **Dependency Audit**: NPM package vulnerability audit
+        
+        ## Results
+        
+        See the individual scan result files for detailed findings.
+        
+        ## Remediation
+        
+        Critical and high severity issues should be addressed immediately.
+        Medium and low severity issues should be triaged and addressed based on risk assessment.
+        
+        Generated on: $(date)
+        Commit: ${{ github.sha }}
+        Branch: ${{ github.ref_name }}
+        EOF
+        
+        echo "Security scan completed for commit ${{ github.sha }}"
+    
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-report
+        path: security-report/
