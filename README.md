@@ -521,6 +521,8 @@ npm install --ignore-engines
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+Copyright (c) 2025 jmstar85
+
 ## 🆘 Support
 
 - **Documentation**: See `docs/` directory

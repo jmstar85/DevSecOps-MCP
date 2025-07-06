@@ -27,7 +27,7 @@
     "semgrep",
     "owasp"
   ],
-  "author": "DevSecOps Team",
+  "author": "jmstar85",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
