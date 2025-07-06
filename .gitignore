@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+security-test-results.json
+.env
+.DS_Store
+*.tmp
+coverage/

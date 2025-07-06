@@ -1,0 +1,72 @@
+{
+  "name": "devsecops-mcp-server",
+  "version": "1.0.0",
+  "description": "DevSecOps MCP Server integrating SAST, DAST, IAST, and SCA tools",
+  "author": "DevSecOps Team",
+  "license": "MIT",
+  "main": "dist/src/mcp/server.js",
+  "scripts": {
+    "start": "node dist/src/mcp/server.js"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tools": [
+    {
+      "name": "run_sast_scan",
+      "description": "Execute SAST (Static Application Security Testing) scan using SonarQube or Semgrep",
+      "category": "security"
+    },
+    {
+      "name": "run_dast_scan", 
+      "description": "Execute DAST (Dynamic Application Security Testing) scan using OWASP ZAP",
+      "category": "security"
+    },
+    {
+      "name": "run_sca_scan",
+      "description": "Execute SCA (Software Composition Analysis) scan using OSV Scanner or npm audit",
+      "category": "security"
+    },
+    {
+      "name": "run_iast_scan",
+      "description": "Execute IAST (Interactive Application Security Testing) scan using OWASP tools",
+      "category": "security"
+    },
+    {
+      "name": "generate_security_report",
+      "description": "Generate comprehensive security report from all scans",
+      "category": "reporting"
+    },
+    {
+      "name": "validate_security_policy",
+      "description": "Validate security policy compliance",
+      "category": "policy"
+    }
+  ],
+  "environment": {
+    "required": [
+      "SONARQUBE_URL",
+      "ZAP_URL"
+    ],
+    "optional": [
+      "SONARQUBE_TOKEN",
+      "ZAP_API_KEY",
+      "OSV_SCANNER_PATH",
+      "TRIVY_CACHE_DIR",
+      "LOG_LEVEL",
+      "SECURITY_STRICT_MODE"
+    ]
+  },
+  "installation": {
+    "npm": "npm install",
+    "build": "npm run build",
+    "start": "npm run start:mcp"
+  },
+  "documentation": {
+    "readme": "README.md",
+    "examples": "examples/",
+    "api": "docs/api.md"
+  }
+}

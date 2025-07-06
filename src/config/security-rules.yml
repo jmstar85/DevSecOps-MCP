@@ -1,0 +1,334 @@
+# DevSecOps MCP Server Security Rules Configuration
+# This file defines security policies and thresholds for SAST, DAST, IAST, and SCA tools
+
+version: "1.0"
+last_updated: "2025-07-06"
+
+# Global Security Policy
+global_policy:
+  enforcement_level: "strict"  # strict, moderate, permissive
+  fail_build_on_critical: true
+  fail_build_on_high: true
+  fail_build_on_medium: false
+  max_medium_vulnerabilities: 5
+  max_low_vulnerabilities: 20
+
+# SAST (Static Application Security Testing) Rules
+sast:
+  enabled: true
+  tools:
+    - sonarqube
+    - semgrep
+  
+  quality_gates:
+    critical_threshold: 0
+    high_threshold: 0
+    medium_threshold: 5
+    code_coverage_minimum: 85
+    duplicated_lines_density_maximum: 3
+    maintainability_rating: "A"
+    reliability_rating: "A"
+    security_rating: "A"
+  
+  exclusions:
+    files:
+      - "**/*test*"
+      - "**/*spec*"
+      - "**/node_modules/**"
+      - "**/vendor/**"
+      - "**/target/**"
+      - "**/build/**"
+      - "**/dist/**"
+    
+    rules:
+      - "javascript:S1135"  # TODO comments
+      - "java:S1135"        # TODO comments
+      - "python:S1135"      # TODO comments
+  
+  custom_rules:
+    - id: "hardcoded-secrets"
+      pattern: "(password|secret|key|token)\\s*=\\s*['\"][^'\"]+['\"]"
+      severity: "critical"
+      message: "Hardcoded secrets detected"
+    
+    - id: "sql-injection"
+      pattern: "execute\\s*\\(.*\\+.*\\)"
+      severity: "high"
+      message: "Potential SQL injection vulnerability"
+    
+    - id: "xss-vulnerability"
+      pattern: "innerHTML\\s*=\\s*.*\\+.*"
+      severity: "medium"
+      message: "Potential XSS vulnerability"
+
+# DAST (Dynamic Application Security Testing) Rules
+dast:
+  enabled: true
+  tools:
+    - zap
+  
+  scan_policies:
+    baseline:
+      max_scan_duration: 1800  # 30 minutes
+      spider_max_depth: 5
+      spider_max_children: 10
+      active_scan: false
+    
+    full:
+      max_scan_duration: 7200  # 2 hours
+      spider_max_depth: 10
+      spider_max_children: 50
+      active_scan: true
+      attack_strength: "medium"
+  
+  exclusions:
+    urls:
+      - "*/logout"
+      - "*/admin/**"
+      - "*/test/**"
+      - "*/debug/**"
+    
+    parameters:
+      - "csrf_token"
+      - "session_id"
+      - "_token"
+  
+  owasp_top10_compliance:
+    - A01_2021_Broken_Access_Control
+    - A02_2021_Cryptographic_Failures
+    - A03_2021_Injection
+    - A04_2021_Insecure_Design
+    - A05_2021_Security_Misconfiguration
+    - A06_2021_Vulnerable_and_Outdated_Components
+    - A07_2021_Identification_and_Authentication_Failures
+    - A08_2021_Software_and_Data_Integrity_Failures
+    - A09_2021_Security_Logging_and_Monitoring_Failures
+    - A10_2021_Server_Side_Request_Forgery
+
+# SCA (Software Composition Analysis) Rules
+sca:
+  enabled: true
+  tools:
+    - snyk
+    - npm-audit
+  
+  vulnerability_thresholds:
+    critical: 0
+    high: 0
+    medium: 3
+    low: 10
+  
+  license_policy:
+    allowed_licenses:
+      - "MIT"
+      - "Apache-2.0"
+      - "BSD-2-Clause"
+      - "BSD-3-Clause"
+      - "ISC"
+      - "Unlicense"
+    
+    restricted_licenses:
+      - "GPL-3.0"
+      - "AGPL-3.0"
+      - "LGPL-3.0"
+      - "SSPL-1.0"
+    
+    forbidden_licenses:
+      - "WTFPL"
+      - "CC-BY-NC"
+      - "Proprietary"
+  
+  auto_fix:
+    enabled: true
+    max_severity: "medium"
+    exclude_packages:
+      - "react"
+      - "angular"
+      - "vue"
+  
+  sbom_generation:
+    enabled: true
+    format: "spdx2.3"
+    include_transitive: true
+    include_licenses: true
+
+# IAST (Interactive Application Security Testing) Rules
+iast:
+  enabled: true
+  tools:
+    - veracode
+    - contrast
+  
+  performance_thresholds:
+    max_agent_overhead: 5.0  # percentage
+    max_memory_impact: 10.0  # percentage
+    max_response_time_impact: 15.0  # percentage
+  
+  coverage_requirements:
+    minimum_route_coverage: 70.0  # percentage
+    minimum_parameter_coverage: 60.0  # percentage
+  
+  runtime_protection:
+    enabled: true
+    block_attacks: false  # monitoring mode
+    log_attacks: true
+  
+  exclusions:
+    endpoints:
+      - "/health"
+      - "/metrics"
+      - "/static/**"
+      - "/assets/**"
+    
+    file_extensions:
+      - ".css"
+      - ".js"
+      - ".png"
+      - ".jpg"
+      - ".gif"
+      - ".ico"
+
+# Security Policy Enforcement
+policy_enforcement:
+  pre_commit:
+    enabled: true
+    tools:
+      - "git-secrets"
+      - "semgrep"
+      - "npm-audit"
+  
+  pull_request:
+    enabled: true
+    require_security_review: true
+    block_on_high_severity: true
+    tools:
+      - "sonarqube"
+      - "snyk"
+  
+  ci_cd_pipeline:
+    enabled: true
+    stages:
+      - name: "secret_detection"
+        tools: ["git-secrets", "trufflescan"]
+        blocking: true
+      
+      - name: "sast_analysis"
+        tools: ["sonarqube", "semgrep"]
+        blocking: true
+      
+      - name: "dependency_scan"
+        tools: ["snyk", "npm-audit"]
+        blocking: true
+      
+      - name: "container_security"
+        tools: ["snyk", "trivy"]
+        blocking: false
+      
+      - name: "dast_baseline"
+        tools: ["zap"]
+        blocking: false
+        environments: ["staging"]
+      
+      - name: "iast_monitoring"
+        tools: ["veracode"]
+        blocking: false
+        environments: ["staging", "testing"]
+
+# Notification and Reporting
+notifications:
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channels:
+      critical: "#security-critical"
+      high: "#security-alerts"
+      medium: "#security-review"
+  
+  email:
+    enabled: false
+    smtp_server: "${SMTP_SERVER}"
+    recipients:
+      - "security-team@company.com"
+      - "devops-team@company.com"
+  
+  jira:
+    enabled: false
+    url: "${JIRA_URL}"
+    project_key: "SEC"
+    issue_type: "Security Vulnerability"
+
+# Reporting Configuration
+reporting:
+  formats:
+    - "json"
+    - "html"
+    - "sarif"
+  
+  include_remediation: true
+  include_risk_assessment: true
+  include_compliance_status: true
+  
+  retention_policy:
+    scan_results_days: 90
+    reports_days: 365
+    metrics_days: 730
+
+# Integration Settings
+integrations:
+  git_providers:
+    github:
+      enabled: false
+      token: "${GITHUB_TOKEN}"
+      org: "${GITHUB_ORG}"
+    
+    gitlab:
+      enabled: false
+      token: "${GITLAB_TOKEN}"
+      url: "${GITLAB_URL}"
+    
+    bitbucket:
+      enabled: false
+      username: "${BITBUCKET_USERNAME}"
+      app_password: "${BITBUCKET_APP_PASSWORD}"
+  
+  issue_trackers:
+    jira:
+      enabled: false
+      url: "${JIRA_URL}"
+      username: "${JIRA_USERNAME}"
+      token: "${JIRA_TOKEN}"
+    
+    github_issues:
+      enabled: false
+      token: "${GITHUB_TOKEN}"
+      repo: "${GITHUB_REPO}"
+  
+  monitoring:
+    prometheus:
+      enabled: false
+      endpoint: "${PROMETHEUS_ENDPOINT}"
+    
+    grafana:
+      enabled: false
+      url: "${GRAFANA_URL}"
+      api_key: "${GRAFANA_API_KEY}"
+
+# Custom Security Checks
+custom_checks:
+  - name: "container_image_scan"
+    description: "Scan container images for vulnerabilities"
+    command: "trivy image --format json ${IMAGE_NAME}"
+    severity_threshold: "high"
+    enabled: true
+  
+  - name: "infrastructure_scan"
+    description: "Scan infrastructure as code"
+    command: "checkov -f ${TERRAFORM_FILE} --framework terraform"
+    severity_threshold: "medium"
+    enabled: true
+  
+  - name: "api_security_test"
+    description: "API security testing"
+    command: "newman run ${POSTMAN_COLLECTION} --environment ${ENVIRONMENT}"
+    severity_threshold: "medium"
+    enabled: false

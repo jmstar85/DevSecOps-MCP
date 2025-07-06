@@ -1,0 +1,39 @@
+{
+  "name": "vulnerable-dependencies-test",
+  "version": "1.0.0",
+  "description": "Test package with intentionally vulnerable dependencies for SCA testing",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"SCA test package\""
+  },
+  "dependencies": {
+    "express": "4.16.1",
+    "lodash": "4.17.4",
+    "moment": "2.19.3",
+    "handlebars": "4.0.12",
+    "jquery": "3.3.1",
+    "debug": "2.6.8",
+    "minimist": "1.2.0",
+    "axios": "0.18.0",
+    "yargs-parser": "5.0.0",
+    "hoek": "4.2.1",
+    "merge": "1.2.0",
+    "deep-extend": "0.5.1",
+    "marked": "0.3.17",
+    "validator": "9.4.1",
+    "cookie-signature": "1.0.6",
+    "ms": "2.0.0",
+    "mime": "1.4.1",
+    "fresh": "0.5.2"
+  },
+  "keywords": [
+    "vulnerable",
+    "dependencies",
+    "security",
+    "testing",
+    "sca"
+  ],
+  "author": "Security Test",
+  "license": "MIT"
+}

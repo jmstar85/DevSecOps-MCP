@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  devsecops-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: devsecops-mcp-server
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MCP_PORT=3000
+      - LOG_LEVEL=info
+      - SECURITY_STRICT_MODE=true
+      # Tool configurations (use environment variables or secrets)
+      - SONARQUBE_URL=${SONARQUBE_URL:-http://sonarqube:9000}
+      - SONARQUBE_TOKEN=${SONARQUBE_TOKEN}
+      - ZAP_URL=${ZAP_URL:-http://zap:8080}
+      - ZAP_API_KEY=${ZAP_API_KEY}
+      - OSV_SCANNER_PATH=${OSV_SCANNER_PATH:-osv-scanner}
+      - OSV_DB_PATH=${OSV_DB_PATH:-/tmp/osv-db}
+      - TRIVY_PATH=${TRIVY_PATH:-trivy}
+      - TRIVY_CACHE_DIR=${TRIVY_CACHE_DIR:-/tmp/trivy-cache}
+    volumes:
+      - ./security-reports:/app/security-reports
+      - ./logs:/app/logs
+      - trivy-cache:/tmp/trivy-cache
+      - osv-db:/tmp/osv-db
+    networks:
+      - devsecops-network
+    restart: unless-stopped
+    depends_on:
+      - sonarqube
+      - zap
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  sonarqube:
+    image: sonarqube:9.9-community
+    container_name: devsecops-sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://postgres:5432/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    networks:
+      - devsecops-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:13-alpine
+    container_name: devsecops-postgres
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - devsecops-network
+    restart: unless-stopped
+
+  zap:
+    image: owasp/zap2docker-stable:latest
+    container_name: devsecops-zap
+    ports:
+      - "8080:8080"
+    command: zap-webswing.sh
+    environment:
+      - ZAP_API_KEY=${ZAP_API_KEY:-default-api-key}
+    volumes:
+      - zap_data:/zap/wrk
+    networks:
+      - devsecops-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: devsecops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - devsecops-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: devsecops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - devsecops-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devsecops-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - devsecops-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: devsecops-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    networks:
+      - devsecops-network
+    depends_on:
+      - devsecops-mcp
+      - sonarqube
+      - grafana
+    restart: unless-stopped
+
+volumes:
+  sonarqube_data:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  postgres_data:
+    driver: local
+  zap_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  trivy-cache:
+    driver: local
+  osv-db:
+    driver: local
+
+networks:
+  devsecops-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

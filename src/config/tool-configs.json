@@ -1,0 +1,338 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-07-06",
+  "description": "DevSecOps MCP Server Tool Configurations",
+  
+  "tools": {
+    "sonarqube": {
+      "enabled": true,
+      "url": "${SONARQUBE_URL:-http://localhost:9000}",
+      "token": "${SONARQUBE_TOKEN}",
+      "timeout": 300000,
+      "default_quality_gate": "Sonar way",
+      "project_settings": {
+        "sonar.sources": "src",
+        "sonar.tests": "tests",
+        "sonar.exclusions": "**/*test*,**/*spec*,**/node_modules/**,**/vendor/**",
+        "sonar.coverage.exclusions": "**/*test*,**/*spec*",
+        "sonar.javascript.lcov.reportPaths": "coverage/lcov.info",
+        "sonar.typescript.lcov.reportPaths": "coverage/lcov.info"
+      },
+      "quality_gates": {
+        "default": {
+          "conditions": [
+            {
+              "metric": "new_bugs",
+              "operator": "GT",
+              "threshold": "0"
+            },
+            {
+              "metric": "new_vulnerabilities",
+              "operator": "GT",
+              "threshold": "0"
+            },
+            {
+              "metric": "new_security_hotspots_reviewed",
+              "operator": "LT",
+              "threshold": "100"
+            },
+            {
+              "metric": "new_coverage",
+              "operator": "LT",
+              "threshold": "80"
+            },
+            {
+              "metric": "new_duplicated_lines_density",
+              "operator": "GT",
+              "threshold": "3"
+            }
+          ]
+        }
+      }
+    },
+
+    "semgrep": {
+      "enabled": true,
+      "config": "auto",
+      "rules": [
+        "p/security-audit",
+        "p/secrets",
+        "p/owasp-top-ten",
+        "p/cwe-top-25"
+      ],
+      "exclude_rules": [
+        "javascript.lang.security.audit.xss.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml",
+        "generic.secrets.security.detected-generic-secret.detected-generic-secret"
+      ],
+      "exclude_paths": [
+        "test/",
+        "tests/",
+        "spec/",
+        "node_modules/",
+        "vendor/",
+        "build/",
+        "dist/"
+      ],
+      "output_format": "json",
+      "severity": "WARNING"
+    },
+
+    "zap": {
+      "enabled": true,
+      "url": "${ZAP_URL:-http://localhost:8080}",
+      "api_key": "${ZAP_API_KEY}",
+      "timeout": 300000,
+      "scan_policies": {
+        "baseline": {
+          "spider": {
+            "max_depth": 5,
+            "max_children": 10,
+            "max_duration": 300
+          },
+          "passive_scan": {
+            "enabled": true
+          },
+          "active_scan": {
+            "enabled": false
+          }
+        },
+        "full": {
+          "spider": {
+            "max_depth": 10,
+            "max_children": 50,
+            "max_duration": 1800
+          },
+          "passive_scan": {
+            "enabled": true
+          },
+          "active_scan": {
+            "enabled": true,
+            "policy": "Default Policy",
+            "attack_strength": "MEDIUM",
+            "alert_threshold": "MEDIUM"
+          }
+        }
+      },
+      "context_config": {
+        "authentication": {
+          "type": "form_based",
+          "login_url": "/login",
+          "username_field": "username",
+          "password_field": "password"
+        },
+        "session_management": {
+          "type": "cookie_based",
+          "session_tokens": ["JSESSIONID", "sessionid", "session"]
+        }
+      },
+      "global_exclusions": [
+        ".*\\.css",
+        ".*\\.js",
+        ".*\\.png",
+        ".*\\.jpg",
+        ".*\\.gif",
+        ".*\\.ico",
+        ".*/logout.*",
+        ".*/admin/.*"
+      ]
+    },
+
+    "osv_scanner": {
+      "enabled": true,
+      "bin_path": "${OSV_SCANNER_PATH:-osv-scanner}",
+      "timeout": 300000,
+      "db_path": "${OSV_DB_PATH}",
+      "scan_options": {
+        "format": "json",
+        "recursive": true,
+        "skip_git": true,
+        "call_analysis": false
+      },
+      "output_options": {
+        "show_traces": true,
+        "verbosity": "info"
+      }
+    },
+
+    "npm_audit": {
+      "enabled": true,
+      "audit_level": "moderate",
+      "production_only": true,
+      "registry": "https://registry.npmjs.org/",
+      "timeout": 60000,
+      "retry": {
+        "count": 3,
+        "factor": 2,
+        "min_timeout": 1000,
+        "max_timeout": 60000
+      }
+    },
+
+    "git_secrets": {
+      "enabled": true,
+      "config_file": ".gitsecrets",
+      "patterns": [
+        "password\\s*=\\s*['\"][^'\"]+['\"]",
+        "secret\\s*=\\s*['\"][^'\"]+['\"]",
+        "api[_-]?key\\s*=\\s*['\"][^'\"]+['\"]",
+        "token\\s*=\\s*['\"][^'\"]+['\"]",
+        "private[_-]?key\\s*=\\s*['\"][^'\"]+['\"]"
+      ],
+      "allowed_patterns": [
+        "password\\s*=\\s*['\"]\\${?[A-Z_]+}?['\"]",
+        "secret\\s*=\\s*['\"]\\${?[A-Z_]+}?['\"]"
+      ]
+    },
+
+    "trivy": {
+      "enabled": true,
+      "bin_path": "${TRIVY_PATH:-trivy}",
+      "cache_dir": "${TRIVY_CACHE_DIR:-/tmp/trivy-cache}",
+      "timeout": 300000,
+      "severity": ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "vuln_type": ["os", "library"],
+      "security_checks": ["vuln", "config", "secret"],
+      "ignore_unfixed": false,
+      "format": "json",
+      "scan_options": {
+        "skip_update": false,
+        "skip_java_db_update": false,
+        "offline_scan": false,
+        "no_progress": true
+      },
+      "image_options": {
+        "remove_containers": true,
+        "platform": "linux/amd64"
+      }
+    },
+
+    "checkov": {
+      "enabled": false,
+      "framework": ["terraform", "cloudformation", "kubernetes", "dockerfile"],
+      "check": [],
+      "skip_check": [],
+      "output_format": "json",
+      "quiet": false,
+      "compact": false
+    }
+  },
+
+  "environments": {
+    "development": {
+      "strict_mode": false,
+      "tools": {
+        "sast": ["semgrep"],
+        "sca": ["osv_scanner", "npm_audit"],
+        "secrets": ["git_secrets"],
+        "iast": ["trivy"],
+        "dast": []
+      },
+      "thresholds": {
+        "critical": 5,
+        "high": 10,
+        "medium": 20
+      }
+    },
+    "staging": {
+      "strict_mode": true,
+      "tools": {
+        "sast": ["sonarqube", "semgrep"],
+        "sca": ["osv_scanner", "trivy", "npm_audit"],
+        "secrets": ["git_secrets"],
+        "iast": ["trivy"],
+        "dast": ["zap"]
+      },
+      "thresholds": {
+        "critical": 0,
+        "high": 2,
+        "medium": 10
+      }
+    },
+    "production": {
+      "strict_mode": true,
+      "tools": {
+        "sast": ["sonarqube"],
+        "sca": ["osv_scanner", "trivy"],
+        "secrets": ["git_secrets"],
+        "iast": ["trivy"],
+        "dast": []
+      },
+      "thresholds": {
+        "critical": 0,
+        "high": 0,
+        "medium": 5
+      }
+    }
+  },
+
+  "integrations": {
+    "ci_cd": {
+      "jenkins": {
+        "enabled": false,
+        "url": "${JENKINS_URL}",
+        "username": "${JENKINS_USERNAME}",
+        "token": "${JENKINS_TOKEN}"
+      },
+      "github_actions": {
+        "enabled": false,
+        "token": "${GITHUB_TOKEN}",
+        "repo": "${GITHUB_REPO}"
+      },
+      "gitlab_ci": {
+        "enabled": false,
+        "url": "${GITLAB_URL}",
+        "token": "${GITLAB_TOKEN}",
+        "project_id": "${GITLAB_PROJECT_ID}"
+      }
+    },
+    "notifications": {
+      "slack": {
+        "enabled": false,
+        "webhook_url": "${SLACK_WEBHOOK_URL}",
+        "channel": "#security",
+        "username": "DevSecOps Bot"
+      },
+      "email": {
+        "enabled": false,
+        "smtp_host": "${SMTP_HOST}",
+        "smtp_port": "${SMTP_PORT}",
+        "smtp_user": "${SMTP_USER}",
+        "smtp_password": "${SMTP_PASSWORD}",
+        "from_email": "devsecops@company.com",
+        "to_emails": ["security-team@company.com"]
+      }
+    },
+    "issue_tracking": {
+      "jira": {
+        "enabled": false,
+        "url": "${JIRA_URL}",
+        "username": "${JIRA_USERNAME}",
+        "token": "${JIRA_TOKEN}",
+        "project_key": "SEC",
+        "issue_type": "Security Vulnerability"
+      }
+    }
+  },
+
+  "reporting": {
+    "output_dir": "security-reports",
+    "formats": ["json", "html", "sarif"],
+    "include_remediation": true,
+    "include_metrics": true,
+    "retention_days": 90,
+    "dashboard": {
+      "enabled": false,
+      "url": "${DASHBOARD_URL}",
+      "refresh_interval": 300
+    }
+  },
+
+  "logging": {
+    "level": "${LOG_LEVEL:-info}",
+    "format": "json",
+    "file": "devsecops-mcp.log",
+    "max_size": "100MB",
+    "max_files": 5,
+    "compress": true
+  }
+}
